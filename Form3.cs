@@ -9,6 +9,8 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using AuthService;
+using static System.Windows.Forms.DataFormats;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace Projekt_zaliczeniowy_.NET
 {
@@ -29,6 +31,7 @@ namespace Projekt_zaliczeniowy_.NET
             var displayList = users.Select(u => new
             {
                 ImieNazwisko = u.Fullname,
+                Id = u.Id,
                 Email = u.Email
             }).ToList();
 
@@ -81,7 +84,79 @@ namespace Projekt_zaliczeniowy_.NET
             Form4 form4 = new Form4();
             form4.Show();
         }
+
+        private void dataGridView1_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            // Pobierz dane klikniętego użytkownika z DataGridView
+            string selectedFullname = dataGridView1.Rows[e.RowIndex].Cells["ImieNazwisko"].Value?.ToString();
+            int selectedUserId = Convert.ToInt32(dataGridView1.Rows[e.RowIndex].Cells["Id"].Value);
+
+            // Pobierz token (zakładam, że masz go gdzieś w AuthService)
+            string token = AuthService.AuthService.AccessToken;
+
+            // Parsuj dane zalogowanego użytkownika z tokena
+            var currentUser = ParseUserFromToken(token);
+
+            // Utwórz nową instancję Chat z danymi nadawcy (z tokena) i odbiorcy (z DataGridView)
+            // Pobierz dane z tokena (np. AuthService.AuthService.ParseUserFromToken(token))
+
+            // Utwórz obiekt czatu
+            Chat currentChat = new Chat()
+            {
+                FullnameFrom = currentUser.Fullname,
+                UserIdFrom = currentUser.Id,
+                FullnameTo = selectedFullname,
+                UserIdTo = selectedUserId
+            };
+
+            CurrentUser cuser = new CurrentUser();
+            cuser = ParseUserFromToken(token);
+
+            // Przekaż do Form6
+            UserSession.Current = JwtHelper.ParseUserFromToken(token);
+            Form6 form6 = new Form6();
+            form6.CurrentChat = currentChat;
+            form6.cuser = cuser;
+            form6.Show();
+        }
+
+        public CurrentUser ParseUserFromToken(string token)
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+
+            var user = new CurrentUser();
+
+            // Wypakuj dane z payload (Claims)
+            foreach (var claim in jwtToken.Claims)
+            {
+                switch (claim.Type)
+                {
+                    case "id":
+                        user.Id = int.Parse(claim.Value);
+                        break;
+                    case "fullname":
+                        user.Fullname = claim.Value;
+                        break;
+                    case "login":
+                        user.Login = claim.Value;
+                        break;
+                    case "password":
+                        user.Password = claim.Value;
+                        break;
+                    case "email":
+                        user.Email = claim.Value;
+                        break;
+                }
+            }
+
+            return user;
+        }
     }
+
+
+
+    
 
     public class User
     {
@@ -90,5 +165,65 @@ namespace Projekt_zaliczeniowy_.NET
         public string Login { get; set; }
         public string Password { get; set; }
         public string Email { get; set; }
+    }
+
+    public class CurrentUser
+    {
+        public int Id { get; set; }
+        public string Fullname { get; set; }
+        public string Login { get; set; }
+        public string Password { get; set; }
+        public string Email { get; set; }
+
+        // Statyczna instancja użytkownika
+        public static CurrentUser Instance { get; set; }
+    }
+
+    public static class UserSession
+    {
+        public static CurrentUser Current { get; set; }
+    }
+
+    public class Chat
+    {
+        public string FullnameFrom { get; set; }
+        public int UserIdFrom { get; set; }
+        public string FullnameTo { get; set; }
+        public int UserIdTo { get; set; }
+    }
+
+    public static class JwtHelper
+    {
+        public static CurrentUser ParseUserFromToken(string token)
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwtToken = handler.ReadJwtToken(token);
+
+            var user = new CurrentUser();
+
+            foreach (var claim in jwtToken.Claims)
+            {
+                switch (claim.Type)
+                {
+                    case "id":
+                        user.Id = int.Parse(claim.Value);
+                        break;
+                    case "fullname":
+                        user.Fullname = claim.Value;
+                        break;
+                    case "login":
+                        user.Login = claim.Value;
+                        break;
+                    case "password":
+                        user.Password = claim.Value;
+                        break;
+                    case "email":
+                        user.Email = claim.Value;
+                        break;
+                }
+            }
+
+            return user;
+        }
     }
 }

@@ -94,7 +94,7 @@
             Controls.Add(label2);
             Controls.Add(Label1);
             Name = "OknoPowitalne";
-            Text = "Witaj!";
+            Text = "ProSec";
             ResumeLayout(false);
             PerformLayout();
         }

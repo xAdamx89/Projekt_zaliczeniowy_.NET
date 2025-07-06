@@ -30,6 +30,7 @@
         {
             dataGridView1 = new DataGridView();
             button1 = new Button();
+            label1 = new Label();
             ((System.ComponentModel.ISupportInitialize)dataGridView1).BeginInit();
             SuspendLayout();
             // 
@@ -41,6 +42,7 @@
             dataGridView1.RowHeadersWidth = 51;
             dataGridView1.Size = new Size(408, 420);
             dataGridView1.TabIndex = 0;
+            dataGridView1.CellDoubleClick += dataGridView1_CellDoubleClick;
             // 
             // button1
             // 
@@ -52,22 +54,36 @@
             button1.UseVisualStyleBackColor = true;
             button1.Click += button1_Click;
             // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Location = new Point(111, 65);
+            label1.Name = "label1";
+            label1.Size = new Size(224, 20);
+            label1.TabIndex = 2;
+            label1.Text = "Wybierz do kogo chcesz napisać\r\n";
+            // 
             // Form3
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(432, 560);
+            Controls.Add(label1);
             Controls.Add(button1);
             Controls.Add(dataGridView1);
             Name = "Form3";
-            Text = "Form3";
+            Text = "ProSec";
             ((System.ComponentModel.ISupportInitialize)dataGridView1).EndInit();
             ResumeLayout(false);
+            PerformLayout();
         }
 
         #endregion
 
         private DataGridView dataGridView1;
         private Button button1;
+        private Label label1;
+        private Label label2;
+        private Label label3;
     }
 }

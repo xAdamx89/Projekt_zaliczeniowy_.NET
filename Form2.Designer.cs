@@ -99,6 +99,7 @@
             button3.TabIndex = 6;
             button3.Text = "Zarejestruj się";
             button3.UseVisualStyleBackColor = true;
+            button3.Click += button3_Click;
             // 
             // label4
             // 
@@ -144,7 +145,7 @@
             Controls.Add(textBox1);
             Controls.Add(label1);
             Name = "Form2";
-            Text = "Zaloguj się";
+            Text = "ProSec";
             ResumeLayout(false);
             PerformLayout();
         }

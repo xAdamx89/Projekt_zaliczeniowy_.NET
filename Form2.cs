@@ -46,11 +46,13 @@ namespace Projekt_zaliczeniowy_.NET
             if (success)
             {
                 label5.Visible = true;
+
+                bool hasPublicKey = await AuthService.AuthService.HasPublicKeyAsync(AuthService.AuthService.AccessToken);
+
                 await Task.Delay(3000);
                 Form3 form3 = new Form3();
                 form3.Show();
                 this.Hide();
-                // Token jest już zapisany w AuthService.AccessToken i możesz go używać do autoryzowanych requestów
             }
             else
             {
@@ -61,6 +63,31 @@ namespace Projekt_zaliczeniowy_.NET
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
             textBox2.UseSystemPasswordChar = !checkBox1.Checked;
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            Form5 form5 = new Form5();
+            form5.Show();
+            this.Close();
+        }
+    }
+
+    public static class YourCryptoHelper
+    {
+        public static (string publicKey, string privateKey) GenerateKeyPair()
+        {
+            using var rsa = new System.Security.Cryptography.RSACryptoServiceProvider(2048);
+            try
+            {
+                string publicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
+                string privateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
+                return (publicKey, privateKey);
+            }
+            finally
+            {
+                rsa.PersistKeyInCsp = false;
+            }
         }
     }
 }
