@@ -9,11 +9,14 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using AuthService;
+using static AuthService.AuthService;
 
 namespace Projekt_zaliczeniowy_.NET
 {
     public partial class Form2 : Form
     {
+
+        LoginResponse userToken = new LoginResponse();
         public Form2()
         {
             InitializeComponent();
@@ -49,8 +52,10 @@ namespace Projekt_zaliczeniowy_.NET
 
                 bool hasPublicKey = await AuthService.AuthService.HasPublicKeyAsync(AuthService.AuthService.AccessToken);
 
-                await Task.Delay(3000);
-                Form3 form3 = new Form3();
+                userToken = await GetTokenByLoginAsync(login);
+
+                await Task.Delay(1000);
+                Form3 form3 = new Form3(userToken);
                 form3.Show();
                 this.Hide();
             }

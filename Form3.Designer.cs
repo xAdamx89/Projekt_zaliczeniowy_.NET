@@ -31,6 +31,8 @@
             dataGridView1 = new DataGridView();
             button1 = new Button();
             label1 = new Label();
+            label4 = new Label();
+            label5 = new Label();
             ((System.ComponentModel.ISupportInitialize)dataGridView1).BeginInit();
             SuspendLayout();
             // 
@@ -63,11 +65,31 @@
             label1.TabIndex = 2;
             label1.Text = "Wybierz do kogo chcesz napisać\r\n";
             // 
+            // label4
+            // 
+            label4.AutoSize = true;
+            label4.Location = new Point(12, 16);
+            label4.Name = "label4";
+            label4.Size = new Size(166, 20);
+            label4.TabIndex = 3;
+            label4.Text = "Jesteś zalogowany jako:";
+            // 
+            // label5
+            // 
+            label5.AutoSize = true;
+            label5.Location = new Point(184, 16);
+            label5.Name = "label5";
+            label5.Size = new Size(50, 20);
+            label5.TabIndex = 4;
+            label5.Text = "label5";
+            // 
             // Form3
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(432, 560);
+            Controls.Add(label5);
+            Controls.Add(label4);
             Controls.Add(label1);
             Controls.Add(button1);
             Controls.Add(dataGridView1);
@@ -85,5 +107,7 @@
         private Label label1;
         private Label label2;
         private Label label3;
+        private Label label4;
+        private Label label5;
     }
 }

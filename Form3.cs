@@ -11,17 +11,49 @@ using System.Windows.Forms;
 using AuthService;
 using static System.Windows.Forms.DataFormats;
 using System.IdentityModel.Tokens.Jwt;
+using Microsoft.VisualBasic.Logging;
+using AuthService;
 
 namespace Projekt_zaliczeniowy_.NET
 {
     public partial class Form3 : Form
     {
-        public Form3()
+        private AuthService.AuthService.LoginResponse _userToken;
+        private CurrentUser _userData;
+        public Form3(AuthService.AuthService.LoginResponse userToken)
         {
             InitializeComponent();
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.Load += Form3_Load;
+            _userToken = userToken;
 
+            //if (_userToken == null)
+            //{
+            //    MessageBox.Show("_userToken jest nullem ;(");
+            //}
+            //else
+            //{
+            //    MessageBox.Show($"Token: {_userToken.access_token}");
+            //}
+
+
+
+            _userData = JwtHelper.ParseUserFromToken(_userToken.access_token);
+
+            label4.Visible = true;
+            label5.Visible = true;
+            label5.Text = _userData.Fullname;
+
+            //MessageBox.Show(
+            //    $"Token: {_userToken.access_token}\n" +
+            //    $"ID: {_userData.Id}\n" +
+            //    $"Imię i nazwisko: {_userData.Fullname}\n" +
+            //    $"Login: {_userData.Login}\n" +
+            //    $"Hasło: {_userData.Password}\n" +
+            //    $"Email: {_userData.Email}",
+            //    "Dane użytkownika"
+            //);
+
+            Form3_Load(this, EventArgs.Empty);
         }
 
         private async void Form3_Load(object sender, EventArgs e)
@@ -95,7 +127,7 @@ namespace Projekt_zaliczeniowy_.NET
             string token = AuthService.AuthService.AccessToken;
 
             // Parsuj dane zalogowanego użytkownika z tokena
-            var currentUser = ParseUserFromToken(token);
+            var currentUser = JwtHelper.ParseUserFromToken(token);
 
             // Utwórz nową instancję Chat z danymi nadawcy (z tokena) i odbiorcy (z DataGridView)
             // Pobierz dane z tokena (np. AuthService.AuthService.ParseUserFromToken(token))
@@ -110,7 +142,7 @@ namespace Projekt_zaliczeniowy_.NET
             };
 
             CurrentUser cuser = new CurrentUser();
-            cuser = ParseUserFromToken(token);
+            cuser = JwtHelper.ParseUserFromToken(token);
 
             // Przekaż do Form6
             UserSession.Current = JwtHelper.ParseUserFromToken(token);
@@ -120,38 +152,7 @@ namespace Projekt_zaliczeniowy_.NET
             form6.Show();
         }
 
-        public CurrentUser ParseUserFromToken(string token)
-        {
-            var handler = new JwtSecurityTokenHandler();
-            var jwtToken = handler.ReadJwtToken(token);
-
-            var user = new CurrentUser();
-
-            // Wypakuj dane z payload (Claims)
-            foreach (var claim in jwtToken.Claims)
-            {
-                switch (claim.Type)
-                {
-                    case "id":
-                        user.Id = int.Parse(claim.Value);
-                        break;
-                    case "fullname":
-                        user.Fullname = claim.Value;
-                        break;
-                    case "login":
-                        user.Login = claim.Value;
-                        break;
-                    case "password":
-                        user.Password = claim.Value;
-                        break;
-                    case "email":
-                        user.Email = claim.Value;
-                        break;
-                }
-            }
-
-            return user;
-        }
+    
     }
 
 
@@ -192,7 +193,7 @@ namespace Projekt_zaliczeniowy_.NET
         public int UserIdTo { get; set; }
     }
 
-    public static class JwtHelper
+    public class JwtHelper
     {
         public static CurrentUser ParseUserFromToken(string token)
         {

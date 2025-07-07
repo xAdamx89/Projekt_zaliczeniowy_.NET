@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -32,7 +35,7 @@ namespace AuthService
         }
 
         // Model odpowiedzi z tokenem
-        private class LoginResponse
+        public class LoginResponse
         {
             public string access_token { get; set; }
             public string token_type { get; set; }
@@ -177,6 +180,26 @@ namespace AuthService
             var response = await client.SendAsync(request);
 
             return response.IsSuccessStatusCode;
+        }
+
+        public static async Task<LoginResponse> GetTokenByLoginAsync(string login)
+        {
+            using (HttpClient client = new HttpClient())
+            {
+                string url = $"http://localhost:8001/get_user_token?login={login}";
+
+                HttpResponseMessage response = await client.GetAsync(url);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var loginResponse = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                    return loginResponse;
+                }
+                else
+                {
+                    throw new HttpRequestException($"Błąd pobierania tokenu: {response.StatusCode}");
+                }
+            }
         }
 
     }
