@@ -12,7 +12,11 @@ using AuthService;
 using static System.Windows.Forms.DataFormats;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.VisualBasic.Logging;
-using AuthService;
+using System.Net.Http.Json;
+using Microsoft.IdentityModel.Tokens;
+using System.Net.Http.Headers;
+using System.Net;
+using System.Text.Json;
 
 namespace Projekt_zaliczeniowy_.NET
 {
@@ -34,8 +38,6 @@ namespace Projekt_zaliczeniowy_.NET
             //{
             //    MessageBox.Show($"Token: {_userToken.access_token}");
             //}
-
-
 
             _userData = JwtHelper.ParseUserFromToken(_userToken.access_token);
 
@@ -117,7 +119,7 @@ namespace Projekt_zaliczeniowy_.NET
             form4.Show();
         }
 
-        private void dataGridView1_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        private async void dataGridView1_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
             // Pobierz dane klikniętego użytkownika z DataGridView
             string selectedFullname = dataGridView1.Rows[e.RowIndex].Cells["ImieNazwisko"].Value?.ToString();
@@ -125,6 +127,9 @@ namespace Projekt_zaliczeniowy_.NET
 
             // Pobierz token (zakładam, że masz go gdzieś w AuthService)
             string token = AuthService.AuthService.AccessToken;
+
+            cToken ctoken = new cToken();
+            ctoken.token = token;
 
             // Parsuj dane zalogowanego użytkownika z tokena
             var currentUser = JwtHelper.ParseUserFromToken(token);
@@ -141,23 +146,83 @@ namespace Projekt_zaliczeniowy_.NET
                 UserIdTo = selectedUserId
             };
 
-            CurrentUser cuser = new CurrentUser();
-            cuser = JwtHelper.ParseUserFromToken(token);
+            CurrentUser cuser = JwtHelper.ParseUserFromToken(token);
+
+            var result = await GetOrCreateConversationAsync(currentChat, token);
+
+            if (result != null)
+            {
+                if (result.status == "existing")
+                {
+                    Console.WriteLine($"Konwersacja już istnieje, ID: {result.conversation_id}");
+                }
+                else if (result.status == "created")
+                {
+                    Console.WriteLine($"Nowa konwersacja utworzona, ID: {result.conversation_id}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Nie udało się uzyskać konwersacji.");
+            }
+
+
 
             // Przekaż do Form6
-            UserSession.Current = JwtHelper.ParseUserFromToken(token);
+            UserSession.Current = cuser;
             Form6 form6 = new Form6();
+            form6.ctoken = ctoken;
             form6.CurrentChat = currentChat;
             form6.cuser = cuser;
             form6.Show();
         }
 
-    
+        public async Task<ConversationResponse?> GetOrCreateConversationAsync(Chat chat, string token)
+        {
+            using (HttpClient client = new HttpClient())
+            {
+                string APIBaseURL = "http://localhost:8001";
+
+                client.BaseAddress = new Uri(APIBaseURL);
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                var requestPayload = new ConversationRequest
+                {
+                    id_od = chat.UserIdFrom,
+                    id_do = chat.UserIdTo
+                };
+
+                var json = JsonSerializer.Serialize(requestPayload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                HttpResponseMessage response = await client.PostAsync("/conversation", content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseStream = await response.Content.ReadAsStreamAsync();
+                    var conversationResponse = await JsonSerializer.DeserializeAsync<ConversationResponse>(responseStream);
+                    Console.WriteLine($"Conversation ID: {conversationResponse?.conversation_id}, Status: {conversationResponse?.status}");
+                    return conversationResponse;
+                }
+                else if (response.StatusCode == HttpStatusCode.BadRequest)
+                {
+                    string errorDetails = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Bad request: {errorDetails}");
+                    return null;
+                }
+                else if (response.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    Console.WriteLine("Unauthorized: Sprawdź token");
+                    return null;
+                }
+                else
+                {
+                    Console.WriteLine($"Unexpected error: {response.StatusCode}");
+                    return null;
+                }
+            }
+        }
     }
-
-
-
-    
 
     public class User
     {
@@ -193,6 +258,18 @@ namespace Projekt_zaliczeniowy_.NET
         public int UserIdTo { get; set; }
     }
 
+    public class ConversationRequest
+    {
+        public int id_od { get; set; }
+        public int id_do { get; set; }
+    }
+
+    public class ConversationResponse
+    {
+        public int conversation_id { get; set; }
+        public string status { get; set; }
+    }
+
     public class JwtHelper
     {
         public static CurrentUser ParseUserFromToken(string token)
@@ -226,5 +303,10 @@ namespace Projekt_zaliczeniowy_.NET
 
             return user;
         }
+    }
+
+    public class cToken
+    {
+        public string token { get; set; }
     }
 }

@@ -94,7 +94,8 @@ namespace AuthService
                         await UploadPublicKeyAsync(publicKey);
                         MessageBox.Show("Wygenerowano klucz!\n" + publicKey + "\nZakończono próbe wysłania go na serwer.");
 
-                        SavePrivateKey(CurrentUserFullname, privateKey);
+                        CurrentUser _userData = JwtHelper.ParseUserFromToken(token);
+                        SavePrivateKey(_userData.Fullname, privateKey);
 
                         bool success = await UploadPublicKeyAsync(publicKey);
                         if (success)
