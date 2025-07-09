@@ -80,19 +80,44 @@ namespace Projekt_zaliczeniowy_.NET
 
     public static class YourCryptoHelper
     {
-        public static (string publicKey, string privateKey) GenerateKeyPair()
+        public static (string publicKeyPEM, string privateKeyPEM) GenerateKeyPair()
         {
             using var rsa = new System.Security.Cryptography.RSACryptoServiceProvider(2048);
             try
             {
-                string publicKey = Convert.ToBase64String(rsa.ExportRSAPublicKey());
-                string privateKey = Convert.ToBase64String(rsa.ExportRSAPrivateKey());
-                return (publicKey, privateKey);
+                // Export klucza publicznego w formacie SubjectPublicKeyInfo (X.509) — to jest standard dla "BEGIN PUBLIC KEY"
+                var publicKeyBytes = rsa.ExportSubjectPublicKeyInfo();
+                string publicKeyBase64 = Convert.ToBase64String(publicKeyBytes);
+                string publicKeyPEM = PemFormat(publicKeyBase64, "PUBLIC KEY");
+
+                // Export klucza prywatnego w formacie PKCS#1 — odpowiada nagłówkowi "BEGIN RSA PRIVATE KEY"
+                var privateKeyBytes = rsa.ExportRSAPrivateKey();
+                string privateKeyBase64 = Convert.ToBase64String(privateKeyBytes);
+                string privateKeyPEM = PemFormat(privateKeyBase64, "RSA PRIVATE KEY");
+
+                return (publicKeyPEM, privateKeyPEM);
             }
             finally
             {
                 rsa.PersistKeyInCsp = false;
             }
+        }
+
+        private static string PemFormat(string base64Data, string label)
+        {
+            // Dodaje nagłówki PEM i łamie co 64 znaki
+            var builder = new StringBuilder();
+            builder.AppendLine($"-----BEGIN {label}-----");
+
+            int lineLength = 64;
+            for (int i = 0; i < base64Data.Length; i += lineLength)
+            {
+                int len = Math.Min(lineLength, base64Data.Length - i);
+                builder.AppendLine(base64Data.Substring(i, len));
+            }
+
+            builder.AppendLine($"-----END {label}-----");
+            return builder.ToString();
         }
     }
 }

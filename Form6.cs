@@ -10,6 +10,7 @@ using System.Reflection.Emit;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Forms.Design;
@@ -19,18 +20,29 @@ namespace Projekt_zaliczeniowy_.NET
 {
     public partial class Form6 : Form
     {
-
         public Chat CurrentChat { get; set; }
         public CurrentUser cuser { get; set; }
         public cToken ctoken { get; set; }
 
         public class Message
         {
+            [JsonPropertyName("id")]
             public int Id { get; set; }
+
+            [JsonPropertyName("conversation_id")]
             public int ConversationId { get; set; }
+
+            [JsonPropertyName("sender_id")]
             public int SenderId { get; set; }
+
+            [JsonPropertyName("content")]
             public string Content { get; set; }
+
+            [JsonPropertyName("sent_at")]
             public DateTime SentAt { get; set; }
+
+            [JsonPropertyName("content_sender_encrypted")]
+            public string ContentSenderEncrypted { get; set; }
         }
 
         public class PublicKeyRequest
@@ -43,6 +55,7 @@ namespace Projekt_zaliczeniowy_.NET
             public int id_od { get; set; }
             public int id_do { get; set; }
             public string content { get; set; }
+            public string content_sender_encrypted { get; set; }
         }
 
         public Form6()
@@ -122,7 +135,6 @@ namespace Projekt_zaliczeniowy_.NET
                 return;
             }
 
-            // URL endpointa - dostosuj adres serwera i port!
             string url = $"http://localhost:8001/get_messages/{user1_id}/{user2_id}";
 
             try
@@ -135,10 +147,14 @@ namespace Projekt_zaliczeniowy_.NET
                 var response = await client.GetAsync(url);
                 response.EnsureSuccessStatusCode();
 
+
                 var json = await response.Content.ReadAsStringAsync();
+
+
 
                 // Deserializacja listy wiadomości (dostosuj model MessageResponse do JSON)
                 var messages = System.Text.Json.JsonSerializer.Deserialize<List<Message>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
 
                 if (messages == null || messages.Count == 0)
                 {
@@ -148,21 +164,32 @@ namespace Projekt_zaliczeniowy_.NET
 
                 richTextBox1.Clear();
 
+
+                //richTextBox1.AppendText($"{cuser.Fullname}  {CurrentChat.FullnameTo}");
+                var userNames = new Dictionary<int, string>
+                {
+                    { user1_id, cuser.Fullname },  // np. 1 -> "Adam Mazurek"
+                    { user2_id, CurrentChat.FullnameTo }         // np. 2 -> "Kuba Mazurek"
+                };
+
                 foreach (var msg in messages)
                 {
                     string decryptedMessage = "";
 
                     try
                     {
+                        //richTextBox1.AppendText($"DEBUG: SenderId={msg.SenderId}, SentAt={msg.SentAt}, Content={msg.Content}\n");
+                        //richTextBox1.AppendText($"[DEBUG] Content: {msg.Content}\n");
                         // Odszyfrowanie wiadomości (content to zaszyfrowana baza64)
                         decryptedMessage = DecryptMessage(msg.Content, privKey);
+
                     }
                     catch (Exception ex)
                     {
                         decryptedMessage = $"[Błąd odszyfrowania]: {ex.Message}";
                     }
 
-                    string senderName = msg.SenderId == user1_id ? UserSession.Current.Fullname : CurrentChat.FullnameTo;
+                    string senderName = userNames.ContainsKey(msg.SenderId) ? userNames[msg.SenderId] : "Nieznany nadawca";
                     string displayText = $"{senderName} ({msg.SentAt.ToLocalTime()}): {decryptedMessage}\n";
 
                     richTextBox1.AppendText(displayText);
@@ -179,21 +206,38 @@ namespace Projekt_zaliczeniowy_.NET
            
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private async void button1_Click(object sender, EventArgs e)
         {
+            string token = ctoken.token;
+
+
+            SendEncryptedMessageAsync(CurrentChat.UserIdFrom, CurrentChat.UserIdTo, token);
+
             textBox1.Clear();
-            //Funkcja wysyłania wiadomości
+
+            await LoadAndDisplayMessagesAsync();
         }
 
-        public static string DecryptMessage(string encryptedBase64, string privateKeyBase64)
+        public static string DecryptMessage(string encryptedBase64, string privateKeyPem)
         {
-            byte[] privateKeyBytes = Convert.FromBase64String(privateKeyBase64);
+            // Usuń nagłówki PEM
+            string pemHeader = "-----BEGIN RSA PRIVATE KEY-----";
+            string pemFooter = "-----END RSA PRIVATE KEY-----";
+
+            string base64Key = privateKeyPem
+                .Replace(pemHeader, "")
+                .Replace(pemFooter, "")
+                .Replace("\r", "")
+                .Replace("\n", "")
+                .Trim();
+
+            byte[] privateKeyBytes = Convert.FromBase64String(base64Key);
             byte[] encryptedBytes = Convert.FromBase64String(encryptedBase64);
 
             using RSA rsa = RSA.Create();
             rsa.ImportRSAPrivateKey(privateKeyBytes, out _);
-
             byte[] decryptedBytes = rsa.Decrypt(encryptedBytes, RSAEncryptionPadding.Pkcs1);
+
             return Encoding.UTF8.GetString(decryptedBytes);
         }
 
@@ -201,47 +245,70 @@ namespace Projekt_zaliczeniowy_.NET
         {
             string messageText = textBox1.Text;
 
-            // 1. Pobierz publiczny klucz odbiorcy
             var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            var publicKeyRequest = new PublicKeyRequest { user_id = recipientId };
-            string publicKeyRequestJson = JsonSerializer.Serialize(publicKeyRequest);
-            var publicKeyContent = new StringContent(publicKeyRequestJson, Encoding.UTF8, "application/json");
-
-            HttpResponseMessage response = await httpClient.PostAsync("http://localhost:8001/get_public_key", publicKeyContent);
-            if (!response.IsSuccessStatusCode)
+            // Funkcja pomocnicza do pobierania klucza publicznego
+            async Task<string> GetPublicKeyAsync(int userId)
             {
-                MessageBox.Show($"Błąd pobierania klucza publicznego: {response.StatusCode}");
-                return;
+                var publicKeyRequest = new PublicKeyRequest { user_id = userId };
+                string requestJson = JsonSerializer.Serialize(publicKeyRequest);
+                var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+
+                HttpResponseMessage response = await httpClient.PostAsync("http://localhost:8001/get_public_key", content);
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new Exception($"Błąd pobierania klucza publicznego użytkownika {userId}: {response.StatusCode}");
+                }
+
+                string responseString = await response.Content.ReadAsStringAsync();
+                using var jsonDoc = JsonDocument.Parse(responseString);
+                return jsonDoc.RootElement.GetProperty("public_key").GetString();
             }
 
-            string responseString = await response.Content.ReadAsStringAsync();
-            using var jsonDoc = JsonDocument.Parse(responseString);
-            string publicKeyBase64 = jsonDoc.RootElement.GetProperty("public_key").GetString();
-
-            // 2. Szyfruj wiadomość kluczem publicznym
-            string encryptedMessage = EncryptMessageWithPublicKey(messageText, publicKeyBase64);
-
-            // 3. Wyślij zaszyfrowaną wiadomość
-            var sendRequest = new SendMessageRequest
+            try
             {
-                id_od = senderId,
-                id_do = recipientId,
-                content = encryptedMessage
-            };
+                // 1. Pobierz klucz publiczny odbiorcy
+                string RPK = await GetPublicKeyAsync(recipientId);
+                string recipientPublicKey = ExtractBase64FromPEM(RPK);
 
-            string sendRequestJson = JsonSerializer.Serialize(sendRequest);
-            var sendContent = new StringContent(sendRequestJson, Encoding.UTF8, "application/json");
+                // 2. Pobierz klucz publiczny nadawcy
+                string SPK = await GetPublicKeyAsync(senderId);
+                string senderPublicKey = ExtractBase64FromPEM(SPK);
 
-            HttpResponseMessage sendResponse = await httpClient.PostAsync("http://localhost:8001/send_message", sendContent);
-            if (sendResponse.IsSuccessStatusCode)
-            {
-                MessageBox.Show("Wiadomość wysłana pomyślnie.");
+                // 3. Zaszyfruj wiadomość dla odbiorcy
+                string encryptedForRecipient = EncryptMessageWithPublicKey(messageText, recipientPublicKey);
+
+                // 4. Zaszyfruj wiadomość dla nadawcy
+                string encryptedForSender = EncryptMessageWithPublicKey(messageText, senderPublicKey);
+
+                // 5. Przygotuj i wyślij wiadomość
+                var sendRequest = new SendMessageRequest
+                {
+                    id_od = senderId,
+                    id_do = recipientId,
+                    content = encryptedForRecipient,
+                    content_sender_encrypted = encryptedForSender
+                };
+
+                string sendRequestJson = JsonSerializer.Serialize(sendRequest);
+                var sendContent = new StringContent(sendRequestJson, Encoding.UTF8, "application/json");
+
+                HttpResponseMessage sendResponse = await httpClient.PostAsync("http://localhost:8001/send_message", sendContent);
+                if (sendResponse.IsSuccessStatusCode)
+                {
+                    MessageBox.Show("Wiadomość wysłana pomyślnie.");
+                    richTextBox1.Clear();
+                    LoadAndDisplayMessagesAsync();
+                }
+                else
+                {
+                    MessageBox.Show($"Błąd wysyłania wiadomości: {sendResponse.StatusCode}");
+                }
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show($"Błąd wysyłania wiadomości: {sendResponse.StatusCode}");
+                MessageBox.Show($"Błąd: {ex.Message}");
             }
         }
 
@@ -257,6 +324,41 @@ namespace Projekt_zaliczeniowy_.NET
             byte[] encryptedBytes = rsa.Encrypt(messageBytes, RSAEncryptionPadding.Pkcs1);
 
             return Convert.ToBase64String(encryptedBytes);
+        }
+
+        public static RSA LoadPublicKeyFromPEM(string pem)
+        {
+            string header = "-----BEGIN PUBLIC KEY-----";
+            string footer = "-----END PUBLIC KEY-----";
+
+            // Usuń nagłówki, końcówki i nowe linie
+            string base64 = pem
+                .Replace(header, "")
+                .Replace(footer, "")
+                .Replace("\r", "")
+                .Replace("\n", "")
+                .Trim();
+
+            byte[] keyBytes = Convert.FromBase64String(base64);
+
+            RSA rsa = RSA.Create();
+            rsa.ImportSubjectPublicKeyInfo(new ReadOnlySpan<byte>(keyBytes), out _);
+            return rsa;
+        }
+
+        public static string ExtractBase64FromPEM(string pem)
+        {
+            string header = "-----BEGIN PUBLIC KEY-----";
+            string footer = "-----END PUBLIC KEY-----";
+
+            string base64 = pem
+                .Replace(header, "")
+                .Replace(footer, "")
+                .Replace("\r", "")
+                .Replace("\n", "")
+                .Trim();
+
+            return base64;
         }
 
     }
